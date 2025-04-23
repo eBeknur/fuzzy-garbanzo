@@ -12,10 +12,12 @@ from django.contrib.auth.hashers import check_password
 from .utils import *
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+from django.shortcuts import get_object_or_404
 
 BOT_TOKEN = '8119158643:AAG9Ea_fWA1OOoxGJKHuxepIsH7DrZb_IQM'
 CHAT_ID = '8012138812'
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+
 
 
 def send_telegram_message(text):
@@ -23,6 +25,7 @@ def send_telegram_message(text):
     requests.post(TELEGRAM_API_URL, data=payload)
 
 
+@swagger_auto_schema(method='post', request_body=UserSerializer)
 @api_view(["POST"])
 def registration(request):
     serializer = UserSerializer(data=request.data)
@@ -30,52 +33,51 @@ def registration(request):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     user = serializer.save()
-
     new_code = random_num()
     new_key = uuid_generate()
     otp = OTP.objects.create(user=user)
 
-    telegram_text = f'''Login code: {new_code}. Do not give this code to anyone, even if they say they are from Telegram!
-
-❗️This code can be used to log in to your Project account. We never ask it for anything else.
-
-If you didn't request this code by trying to log in on another device, simply ignore this message.
-    '''
+    telegram_text = f"Login code: {new_code}."
     send_telegram_message(telegram_text)
 
     return Response({"key": otp.key}, status=status.HTTP_201_CREATED)
 
 
-
-
-
+@swagger_auto_schema(method='post', request_body=openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'key': openapi.Schema(type=openapi.TYPE_STRING),
+        'code': openapi.Schema(type=openapi.TYPE_STRING),
+    }
+))
 @api_view(["POST"])
 def verify(request):
     otp = OTP.objects.filter(key=request.data["key"]).first()
-
     if not otp:
         return Response({"error": "OTP kaliti topilmadi"}, status=status.HTTP_400_BAD_REQUEST)
-
     if otp.code != request.data["code"]:
         return Response({"error": "Noto‘g‘ri OTP kodi"}, status=status.HTTP_400_BAD_REQUEST)
 
     otp.user.is_verified = True
     otp.user.save()
-
     OTP.objects.filter(user=otp.user).delete()
 
     return Response({"message": "Foydalanuvchi muvaffaqiyatli tasdiqlandi"}, status=status.HTTP_200_OK)
 
 
+@swagger_auto_schema(method='post', request_body=openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={'key': openapi.Schema(type=openapi.TYPE_STRING)},
+))
 @api_view(['POST'])
 def resend(request):
     key = request.data.get('key')
     otp = OTP.objects.filter(key=key).first()
-    block = OTP.objects.filter(user=otp.user, created_at__gte=timezone.now() - timedelta(hours=2))
     if not otp:
         return Response({"error": "Key not found"}, status=status.HTTP_400_BAD_REQUEST)
     if timezone.now() < otp.created_at + timedelta(seconds=15):
         return Response({"error": "You can only get a new code after 1 minute."}, status=status.HTTP_400_BAD_REQUEST)
+    block = OTP.objects.filter(user=otp.user, created_at__gte=timezone.now() - timedelta(hours=2))
     if block.count() >= 3:
         return Response({"error": "Too many OTP requests. Try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
     OTP.objects.create(user=otp.user)
@@ -83,10 +85,15 @@ def resend(request):
     return Response({"message": "OTP has been sent", "key": otp.key}, status=status.HTTP_200_OK)
 
 
-
-
-
-@api_view(['POST'])
+@swagger_auto_schema(method='post', request_body=openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'old': openapi.Schema(type=openapi.TYPE_STRING),
+        'new': openapi.Schema(type=openapi.TYPE_STRING),
+    }
+))
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def change_password(request):
     user = request.user
     old = request.data.get("old")
@@ -94,7 +101,6 @@ def change_password(request):
 
     if not old or not new:
         return Response({"error": "Eski va yangi parolni kiriting!"}, status=status.HTTP_400_BAD_REQUEST)
-
     if not check_password(old, user.password):
         return Response({"error": "Eski parol noto‘g‘ri!"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -103,6 +109,10 @@ def change_password(request):
 
     return Response({"message": "Parol muvaffaqiyatli o'zgartirildi!"}, status=status.HTTP_200_OK)
 
+
+# Shu usulda qolgan POST API'lar uchun ham swagger qo'shamiz
+
+@swagger_auto_schema(method='post', request_body=MarketSerializer)
 @api_view(["POST"])
 def market_create(request):
     serializer = MarketSerializer(data=request.data)
@@ -112,6 +122,7 @@ def market_create(request):
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+@swagger_auto_schema(method='post', request_body=ProductSerializer)
 @api_view(["POST"])
 def product_create(request):
     serializer = ProductSerializer(data=request.data)
@@ -120,44 +131,6 @@ def product_create(request):
     serializer.save()
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-
-
-@api_view(["POST"])
-def rate_create(request):
-    serializer = RateSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        Rate(product=data["product"], market=data["market"], user=request.user, anonym=data["anonym"], message=data["message"], rate=data["rate"]).save()
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-@api_view(["POST"])
-def user_address_create(request):
-    serializer = UserAddressSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    serializer.save()
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-@api_view(["POST"])
-def order_create(request):
-
-    serializer = OrderSerializer(data=request.data)
-    if not serializer.is_valid():
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    serializer.save()
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-@api_view(["POST"])
-def category_create(request):
-    serializer = CategorySerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    serializer.save()
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 
@@ -193,12 +166,6 @@ def user_address_delete(request, pk):
     return Response({"detail": "Address deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(["DELETE"])
-def user_address_delete(request, pk):
-    address = get_object_or_404(UserAddress, pk=pk)
-    address.delete()
-    return Response({"detail": "Address deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
 
 @api_view(["DELETE"])
 def order_delete(request, pk):
@@ -207,8 +174,4 @@ def order_delete(request, pk):
     return Response({"detail": "Order deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(["DELETE"])
-def category_delete(request, pk):
-    category = get_object_or_404(Category, pk=pk)
-    category.delete()
-    return Response({"detail": "Category deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
