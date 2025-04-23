@@ -133,45 +133,104 @@ def product_create(request):
 
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def rate_create(request):
+    data = request.data
+    try:
+        product = Product.objects.get(pk=data["product"])
+        market = Market.objects.get(pk=data["market"])
+    except (Product.DoesNotExist, Market.DoesNotExist):
+        return Response({"error": "Mahsulot yoki market topilmadi."}, status=status.HTTP_404_NOT_FOUND)
+
+    rate = Rate.objects.create(
+        product=product,
+        market=market,
+        user=request.user,
+        anonym=data.get("anonym", False),
+        message=data.get("message", ""),
+        rate=data.get("rate", 0)
+    )
+
+    serializer = RateSerializer(rate)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def user_address_create(request):
+    data = request.data.copy()
+    data["user"] = request.user.id
+
+    serializer = UserAddressSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def order_create(request):
+    data = request.data.copy()
+    data["user"] = request.user.id
+
+    serializer = OrderSerializer(data=data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def category_create(request):
+    serializer = CategorySerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@api_view(["DELETE"])
-def market_delete(request, pk):
-    market = get_object_or_404(Market, pk=pk)
-    market.delete()
-    return Response({"detail": "Market deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
-
-@api_view(["DELETE"])
-def product_delete(request, pk):
-    product = get_object_or_404(Product, pk=pk)
-    product.delete()
-    return Response({"detail": "Product deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
-
-@api_view(["DELETE"])
-
-def rate_delete(request, pk):
-    rate = get_object_or_404(Rate, pk=pk, user=request.user)
-    rate.delete()
-    return Response({"detail": "Rate deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
-
-@api_view(["DELETE"])
-def user_address_delete(request, pk):
-    address = get_object_or_404(UserAddress, pk=pk)
-    address.delete()
-    return Response({"detail": "Address deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
-
-
-@api_view(["DELETE"])
-def order_delete(request, pk):
-    order = get_object_or_404(Order, pk=pk)
-    order.delete()
-    return Response({"detail": "Order deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
-
-
-
+#
+# @api_view(["DELETE"])
+# def market_delete(request, pk):
+#     market = get_object_or_404(Market, pk=pk)
+#     market.delete()
+#     return Response({"detail": "Market deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+#
+#
+# @api_view(["DELETE"])
+# def product_delete(request, pk):
+#     product = get_object_or_404(Product, pk=pk)
+#     product.delete()
+#     return Response({"detail": "Product deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+#
+#
+# @api_view(["DELETE"])
+# def rate_delete(request, pk):
+#     rate = get_object_or_404(Rate, pk=pk, user=request.user)
+#     rate.delete()
+#     return Response({"detail": "Rate deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+#
+#
+# @api_view(["DELETE"])
+# def user_address_delete(request, pk):
+#     address = get_object_or_404(UserAddress, pk=pk)
+#     address.delete()
+#     return Response({"detail": "Address deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+#
+#
+#
+# @api_view(["DELETE"])
+# def order_delete(request, pk):
+#     order = get_object_or_404(Order, pk=pk)
+#     order.delete()
+#     return Response({"detail": "Order deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+#
+# @api_view(["DELETE"])
+# def category_delete(request, pk):
+#     order = get_object_or_404(Order, pk=pk)
+#     order.delete()
+#     return Response({"detail": "Order deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+#
+#
+#

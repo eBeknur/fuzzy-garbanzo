@@ -15,13 +15,28 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
 from rest_framework import permissions
 from django.contrib import admin
-from django.urls import path , include,re_path
+from django.urls import path, include, re_path
+
+schema_view = get_schema_view(
+    openapi.Info(
+        title="APIv1",
+        default_version="v1",
+        description="API for project API",
+        terms_of_service="",
+        contact=openapi.Contact(email="email@gmail.com"),
+        license=openapi.License(name="BSD License"),
+    ),
+    public=True,
+    permission_classes=[permissions.AllowAny],
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("" , include('app.urls')),
+    path("", include('app.urls')),
+
     re_path(
         r"^swagger(?P<format>\.json|\.yaml)$",
         schema_view.without_ui(cache_timeout=0),
@@ -33,21 +48,8 @@ urlpatterns = [
         name="schema-swagger-ui",
     ),
     re_path(
-        r"^redoc/$", schema_view.with_ui("redoc", cache_timeout=0), name="schema-redoc"
-    )
-]
-
-
-
-schema_view = get_schema_view(
-    openapi.Info(
-        title="Dommaster APIv1",
-        default_version="v1",
-        description="API for project Dommaster",
-        terms_of_service="",
-        contact=openapi.Contact(email="email@gmail.com"),
-        license=openapi.License(name="BSD License"),
+        r"^redoc/$",
+        schema_view.with_ui("redoc", cache_timeout=0),
+        name="schema-redoc"
     ),
-    public=True,
-    permission_classes=[permissions.AllowAny],
-)
+]
